@@ -1,0 +1,364 @@
+{:Scene("/main.mheg+" 0)
+:Items (
+
+	{:IntegerConst TABLE_X1 :ConstValue 250 }
+	{:IntegerConst TABLE_X2 :ConstValue 350 }
+	{:IntegerConst TABLE_X3 :ConstValue 620 }
+	{:IntegerConst TABLE_X4 :ConstValue 700 }
+	{:IntegerConst TABLE_Y1 :ConstValue 50 }
+	{:IntegerConst TABLE_RH :ConstValue 30 }
+	{:IntegerConst TABLE_RHP :ConstValue 34 }
+	{:IntegerConst COLUMN_PAD :ConstValue 4 }
+	{:IntegerConst SELECTED_PAD :ConstValue 4 }
+
+	{:BooleanVar residentPrgResult :OrigValue false }
+	{:ResidentPrg substring :InitiallyActive false :name "SES" }
+	{:ResidentPrg substringSearch :InitiallyActive false :name "SSS" }
+
+	{:OStringVar strDataPath :OrigValue "" }
+	{:OStringVar strSearchStr :OrigValue "" }
+	{:IntegerVar intLinePosition :OrigValue 0 }
+	{:IntegerVar intCharPosition :OrigValue 0 }
+	{:IntegerVar intCharEnd :OrigValue 0 }
+	{:OStringVar strCurrentRow :OrigValue "" }
+	{:OStringVar strCurrentVar :OrigValue "" }
+	
+	{:OStringVar strPosition :OrigValue "" }
+	{:OStringVar strName :OrigValue "" }
+	{:OStringVar strRole :OrigValue "" }
+	{:OStringVar strGlasses :OrigValue "" }
+	
+	{:IntegerVar intSelectedLine :OrigValue 0 }
+	{:IntegerVar coordSelectedLine :OrigValue 0 }
+	{:IntegerVar intFlashRepeats :OrigValue 0 }
+	
+	{:Timer updateTimer }
+	{:Timer flashTimer }
+	
+	{:IntegerVar intSelectedPos
+		:OrigValue 0
+	}
+	{:Rectangle boxBorder
+		:OrigBoxSize 200 170
+		:OrigPosition 45 45
+		:OrigRefFillColour '=55=55=55=00'
+	}
+	{:Rectangle boxSelectedRow
+		:InitiallyActive false
+		:OrigBoxSize [TABLE_X4 - TABLE_X1 + (SELECTED_PAD * 2) - COLUMN_PAD] [TABLE_RH + (SELECTED_PAD * 2)]
+		:OrigPosition [TABLE_X1 - SELECTED_PAD] [TABLE_Y1 - SELECTED_PAD]
+		:OrigRefFillColour '=FF=FF=FF=00'
+	}
+	{:EntryField txtTitle
+		:OrigContent "Training Day 02"
+		:OrigBoxSize 190 40
+		:OrigPosition 50 50
+		:HJustification centre
+		:VJustification centre
+		:InputType numeric
+	}
+	{:EntryField txtInfo
+		:OrigContent "Beep boop"
+		:OrigBoxSize 190 40
+		:OrigPosition 50 170
+		:HJustification centre
+		:VJustification centre
+		:InputType numeric
+		:TextColour '=FF=FF=FF=00'
+		:BackgroundColour '=2A=2A=2A=00'
+	}
+	{:Text txtLoader
+		:OrigContent :ContentRef("/data/data.rc")
+		:OrigBoxSize 0 0
+		:OrigPosition 0 0
+	}
+	foreach num (1 .. 9) {
+		{:Text txtLineName<num>
+			:OrigContent ""
+			:OrigBoxSize [TABLE_X2 - TABLE_X1 - COLUMN_PAD] TABLE_RH
+			:OrigPosition [TABLE_X1] [TABLE_Y1 + (<num> - 1) * (TABLE_RH + COLUMN_PAD)]
+			:TextColour '=FF=FF=FF=00'
+			:BackgroundColour '=FF=00=00=00'
+		}
+		{:Text txtLineRole<num>
+			:OrigContent ""
+			:OrigBoxSize [TABLE_X3 - TABLE_X2 - COLUMN_PAD] TABLE_RH
+			:OrigPosition [TABLE_X2] [TABLE_Y1 + (<num> - 1) * (TABLE_RH + COLUMN_PAD)]
+			:TextColour '=FF=FF=FF=00'
+			:BackgroundColour '=55=55=55=00'
+		}
+		{:Text txtLineGlasses<num>
+			:OrigContent ""
+			:OrigBoxSize [TABLE_X4 - TABLE_X3 - COLUMN_PAD] TABLE_RH
+			:OrigPosition [TABLE_X3] [TABLE_Y1 + (<num> - 1) * (TABLE_RH + COLUMN_PAD)]
+			:TextColour '=FF=FF=FF=00'
+			:BackgroundColour '=55=55=55=00'
+		}
+	} endfor
+	{:OStringVar strLoadedContent :OrigValue ""}
+	{:Bitmap pngDefaultImage
+		:CHook 4
+		:OrigContent :ContentRef ("/img/logo-bbc.png")
+		:OrigBoxSize 200 50
+		:OrigPosition 45 100
+	}
+	{:Link linkUpPress
+		:EventSource	0
+		:EventType		UserInput
+		:EventData		1
+		:LinkEffect (
+			navStateMachine.CallAction(selectUp)
+		)
+	}
+	{:Link linkDownPress
+		:EventSource	0
+		:EventType		UserInput
+		:EventData		2
+		:LinkEffect (
+			navStateMachine.CallAction(selectDown)
+		)
+	}
+	{:Link linkTextLoaded
+		:EventType			ContentAvailable
+		:EventSource		txtLoader
+		:LinkEffect (
+			txtLoader.GetTextData(strLoadedContent)
+			linkUpdateText.Activate()
+			
+			// :SetTimer(0 updateTimer 5000)
+		)
+	}
+	{:Link linkUpdateText
+		:InitiallyActive	false
+		:EventType			IsRunning
+		:EventSource		linkUpdateText
+		:LinkEffect (
+			linkUpdateText.Deactivate()
+			
+			intLinePosition.SetVariable(-1)
+			foreach num (1 .. 9) {
+				intLinePosition.Add(1)
+				linkReadVarsAtLinePosition.Activate()
+				txtLineName<num>.SetData(:IndirectRef strName)
+				txtLineRole<num>.SetData(:IndirectRef strRole)
+				txtLineGlasses<num>.SetData(:IndirectRef strGlasses)
+			} endfor
+		)
+	}
+	{:Link linkReadVarsAtLinePosition
+		:InitiallyActive	false
+		:EventType			IsRunning
+		:EventSource		linkReadVarsAtLinePosition
+		:LinkEffect (
+			linkReadVarsAtLinePosition.Deactivate()
+			
+			intCharPosition.SetVariable(0)
+			
+			strSearchStr.SetVariable(:IndirectRef intLinePosition)
+			strSearchStr.Append("|")
+			
+			// find row
+			substringSearch.Call(
+			    residentPrgResult
+			    :IndirectRef strLoadedContent
+			    0
+			    :IndirectRef strSearchStr
+			    :IndirectRef intCharPosition
+			)
+			
+			// reset line if not found
+			:If (intCharPosition == -1)
+			{
+				strCurrentRow.SetVariable('No data found at row ')
+				strPosition.SetVariable(:IndirectRef intLinePosition)
+				strCurrentRow.Append(:IndirectRef strPosition)
+			}
+			:Else
+			{
+				// read columns to variables
+				linkReadNextVar.Activate();
+				strPosition.SetVariable(:IndirectRef strCurrentVar)
+				
+				linkReadNextVar.Activate();
+				strName.SetVariable(:IndirectRef strCurrentVar)
+				
+				linkReadNextVar.Activate();
+				strRole.SetVariable(:IndirectRef strCurrentVar)
+				
+				linkReadNextVar.Activate();
+				strGlasses.SetVariable(:IndirectRef strCurrentVar)
+				
+				// build row
+				strCurrentRow.SetVariable("Row: ")
+				strCurrentRow.Append(:IndirectRef strName)
+				strCurrentRow.Append(", ")
+				strCurrentRow.Append(:IndirectRef strRole)
+				strCurrentRow.Append(", ")
+				strCurrentRow.Append(:IndirectRef strGlasses)
+				strCurrentRow.Append(". ")
+			}
+		)
+	}
+	{:Link linkReadNextVar
+		:InitiallyActive	false
+		:EventType			IsRunning
+		:EventSource		linkReadNextVar
+		:LinkEffect (
+			linkReadNextVar.Deactivate()
+			
+			substring.Call(
+				residentPrgResult
+				:IndirectRef strLoadedContent
+				:IndirectRef intCharPosition
+				'|'
+				:IndirectRef strCurrentVar
+				:IndirectRef intCharPosition
+			)
+		)
+	}
+	{:Link linkUpdateSelectedLineBox
+		:InitiallyActive	false
+		:EventType			IsRunning
+		:EventSource		linkUpdateSelectedLineBox
+		:LinkEffect (
+			linkUpdateSelectedLineBox.Deactivate()
+			
+			boxSelectedRow.SendToBack()
+		 	coordSelectedLine.SetVariable(:IndirectRef intSelectedLine)
+		 	coordSelectedLine.Multiply(TABLE_RHP)
+		 	coordSelectedLine.Add(TABLE_Y1)
+		 	coordSelectedLine.Subtract(SELECTED_PAD)
+		 	boxSelectedRow.SetPosition([TABLE_X1 - SELECTED_PAD] :IndirectRef coordSelectedLine)
+		)
+	}
+	{:Link linkUpdateTimerEvent
+		:EventSource 	0
+		:EventType		TimerFired
+		:EventData		updateTimer
+		:LinkEffect (
+			txtLoader.SetData(:NewRefContent("/data/data.rc"))
+		)
+	}
+	{:Link linkSelectedPress
+		:EventSource	0
+		:EventType		UserInput
+		:EventData		15
+		:LinkEffect (
+			linkFlashSelectedLine.Activate()
+			
+			:If (intSelectedLine != -1) {
+				intLinePosition.SetVariable(:IndirectRef intSelectedLine)
+				linkReadVarsAtLinePosition.Activate()
+				
+				txtInfo.SetData(:IndirectRef strName)
+			}
+			:Else {
+				txtInfo.SetData("No selection")
+			}
+		)
+	}
+	{:Link linkFlashSelectedLine
+		:InitiallyActive	false
+		:EventType			IsRunning
+		:EventSource		linkFlashSelectedLine
+		:LinkEffect (
+			linkFlashSelectedLine.Deactivate()
+			
+			intFlashRepeats.SetVariable(5)
+			boxSelectedRow.BringToFront()
+			:SetTimer(0 flashTimer 100)
+		)
+	}
+	{:IntegerVar intModResult :OrigValue 0 }
+	{:Link linkFlashTimerEvent
+		:EventSource 	0
+		:EventType		TimerFired
+		:EventData		flashTimer
+		:LinkEffect (
+			:If (intFlashRepeats > 0)
+			{
+				intModResult.SetVariable(:IndirectRef intFlashRepeats)
+				intModResult.Modulo(2)
+				:If (intModResult == 0) {
+					boxSelectedRow.BringToFront()
+				}
+				:Else {
+					boxSelectedRow.SendToBack()
+				}
+				intFlashRepeats.Subtract(1)
+				:SetTimer(0 flashTimer 100)
+			}
+		)
+	}
+	
+	{:StateMachine navStateMachine
+		{:State noSelection
+			 :OnEntry {
+			 	intSelectedLine.SetVariable(-1)
+			 	boxSelectedRow.Stop()
+			 }
+			 :Action selectDown {
+			 	navStateMachine.SetState(firstRow)
+			 }
+			 :Action selectUp {
+			 	navStateMachine.SetState(lastRow)
+			 }
+		}
+		{:State firstRow
+			 :OnEntry {
+			 	intSelectedLine.SetVariable(1)
+			 	boxSelectedRow.Run()
+			 	boxSelectedRow.SendToBack()
+			 	linkUpdateSelectedLineBox.Activate()
+			 }
+			 :Action selectDown {
+			 	intSelectedLine.Add(1)
+			 	navStateMachine.SetState(middleRow)
+			 }
+			 :Action selectUp {
+			 	intSelectedLine.Subtract(1)
+			 	navStateMachine.SetState(noSelection)
+			 }
+		}
+		{:State middleRow
+			 :OnEntry {
+			 	boxSelectedRow.Run()
+			 	boxSelectedRow.SendToBack()
+			 	linkUpdateSelectedLineBox.Activate()
+			 }
+			 :Action selectDown {
+			 	intSelectedLine.Add(1)
+			 	:If (intSelectedLine == 8) {
+			 		navStateMachine.SetState(lastRow)
+			 	}
+			 	linkUpdateSelectedLineBox.Activate()
+			 }
+			 :Action selectUp {
+			 	intSelectedLine.Subtract(1)
+			 	:If (intSelectedLine == 1) {
+			 		navStateMachine.SetState(firstRow)
+			 	}
+			 	linkUpdateSelectedLineBox.Activate()
+			 }
+		}
+		{:State lastRow
+			 :OnEntry {
+			 	intSelectedLine.SetVariable(8)
+			 	boxSelectedRow.Run()
+			 	boxSelectedRow.SendToBack()
+			 	linkUpdateSelectedLineBox.Activate()
+			 }
+			 :Action selectDown {
+			 	intSelectedLine.Add(1)
+			 	navStateMachine.SetState(noSelection)
+			 }
+			 :Action selectUp {
+			 	intSelectedLine.Subtract(1)
+			 	navStateMachine.SetState(middleRow)
+			 }
+		}
+	}
+)
+:InputEventReg 4
+:SceneCS 720 576
+}
